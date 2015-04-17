@@ -7,7 +7,8 @@ ENV GOPATH /commitbot/lib
 
 RUN go get github.com/thoj/go-ircevent
 
-ADD svn.go commitbot.go
+ADD commitbot.go commitbot.go
+
 RUN go build commitbot.go
 RUN cp commitbot /usr/bin/commitbot
 
