@@ -108,10 +108,10 @@ func run_irc(server, nick string, channels []string, input chan string) {
 
 func main() {
 	sr := "svn://nebula/"
-	head := getHead(sr) - 1
+	head := getHead(sr)
 	svnchan := make(chan string)
 
-	go run_irc("irc:6667", "commits", []string{"#commits"}, svnchan)
+	go run_irc("irc:6667", "commitbot", []string{"#commits"}, svnchan)
 
 	for {
 		log := recentCommits(sr, head)
