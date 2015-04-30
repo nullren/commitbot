@@ -162,17 +162,41 @@ func run_irc(server, nick, owner string, channels []string, input chan string) {
 	io.Loop()
 }
 
-func formatCommit(c Commit) string {
-	return fmt.Sprintf("r%s: <%s> %s", c.Revision, c.Author, c.Msg)
+func formatCommit(svnroot string, c Commit) string {
+	return fmt.Sprintf("%s %s %s: %s",
+		withChangeRoot(svnroot, c),
+		c.Revision,
+		c.Author,
+		c.Msg,
+	)
 }
 
-func withChangeRoot(original, svnroot string, c Commit) string {
+func withChangeRoot(svnroot string, c Commit) string {
 	diff, err := getPathChanges(svnroot, c)
 	if err == nil {
 		root := commonPrefix(diff)
-		return fmt.Sprintf("%s (%s)", original, root)
+		root, err = getSvnBranch(root)
+		if err == nil {
+			return fmt.Sprintf("%s", root)
+		}
 	}
-	return original
+	return ""
+}
+
+func getSvnBranch(svnpath string) (string, error) {
+	svnprefix := "svn://"
+	if !strings.HasPrefix(svnpath, svnprefix) {
+		return "", fmt.Errorf("%s does not start with %s", svnpath, svnprefix)
+	}
+	v := svnpath[len(svnprefix):]
+	vs := strings.Split(v, string(os.PathSeparator))
+
+	project, branch := vs[1], vs[2]
+	if len(vs) > 3 && branch != "main" {
+		branch = fmt.Sprintf("%s/%s", branch, vs[4])
+	}
+
+	return fmt.Sprintf("%s/%s", project, branch), nil
 }
 
 func main() {
@@ -195,7 +219,7 @@ func main() {
 		log := recentCommits(sr, head)
 		for _, c := range log.Commits {
 			_, head = parseHead(c)
-			svnchan <- withChangeRoot(formatCommit(c), sr, c)
+			svnchan <- formatCommit(sr, c)
 		}
 		time.Sleep(10 * time.Second)
 	}
