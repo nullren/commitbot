@@ -31,10 +31,33 @@ type Info struct {
 	Entry Entry `xml:"entry"`
 }
 
+type Path struct {
+	Props string `xml:"props,attr"`
+	Kind  string `xml:"kind,attr"`
+	Item  string `xml:"item,attr"`
+	Path  string `xml:",chardata"`
+}
+
+type Diff struct {
+	Paths []Path `xml:"paths>path"`
+}
+
 func failiferr(e error) {
 	if e != nil {
 		log.Fatal(e)
 	}
+}
+func getPathChanges(svnroot string, commit int) (Diff, error) {
+	buff, err := exec.Command("svn", "diff", "--summarize", "--xml", "-c", strconv.Itoa(commit), svnroot).Output()
+	if err != nil {
+		return Diff{}, err
+	}
+
+	fmt.Printf("%v\n", string(buff))
+
+	var v Diff
+	err = xml.Unmarshal(buff, &v)
+	return v, err
 }
 
 func getHead(svnroot string) int {
