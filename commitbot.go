@@ -164,36 +164,32 @@ func run_irc(server, nick, owner string, channels []string, input chan string) {
 
 func formatCommit(svnroot string, c Commit) string {
 	return fmt.Sprintf("%s %s %s: %s",
-		withChangeRoot(svnroot, c),
+		changesRoot(svnroot, c),
 		c.Revision,
 		c.Author,
 		c.Msg,
 	)
 }
 
-func withChangeRoot(svnroot string, c Commit) string {
+func changesRoot(svnroot string, c Commit) string {
 	diff, err := getPathChanges(svnroot, c)
 	if err == nil {
-		return commonPrefix(diff)
+		return getBranch(svnroot, commonPrefix(diff))
 	}
 	return ""
 }
 
-// TODO: this is junk
-func getSvnBranch(svnpath string) (string, error) {
-	svnprefix := "svn://"
-	if !strings.HasPrefix(svnpath, svnprefix) {
-		return "", fmt.Errorf("%s does not start with %s", svnpath, svnprefix)
+func getBranch(svnroot, svnpath string) string {
+	sep := string(os.PathSeparator)
+	if strings.HasPrefix(svnpath, svnroot) {
+		v := strings.TrimLeft(svnpath[len(svnroot):], sep)
+		ps := strings.Split(v, sep)
+		if len(ps) < 3 {
+			return v
+		}
+		return strings.Join(ps[:3], sep)
 	}
-	v := svnpath[len(svnprefix):]
-	vs := strings.Split(v, string(os.PathSeparator))
-
-	project, branch := vs[1], vs[2]
-	if len(vs) > 3 && branch != "main" {
-		branch = fmt.Sprintf("%s/%s", branch, vs[4])
-	}
-
-	return fmt.Sprintf("%s/%s", project, branch), nil
+	return svnpath
 }
 
 func main() {
@@ -207,7 +203,7 @@ func main() {
 	channels := strings.Split(os.Args[4], ",")
 	sr := os.Args[5]
 
-	head := getHead(sr) - 1
+	head := 70875
 	svnchan := make(chan string)
 
 	go run_irc(server, nick, owner, channels, svnchan)
