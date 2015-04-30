@@ -8,7 +8,4 @@ build:
 push:
 	docker push $(IMAGETAG)
 
-run:
-	docker run -it $(IMAGETAG) bash
-
-.PHONY: build push run
+.PHONY: build push

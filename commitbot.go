@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"github.com/thoj/go-ircevent"
 	"log"
+	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -47,13 +49,12 @@ func failiferr(e error) {
 		log.Fatal(e)
 	}
 }
-func getPathChanges(svnroot string, commit int) (Diff, error) {
-	buff, err := exec.Command("svn", "diff", "--summarize", "--xml", "-c", strconv.Itoa(commit), svnroot).Output()
+
+func getPathChanges(svnroot string, commit Commit) (Diff, error) {
+	buff, err := exec.Command("svn", "diff", "--summarize", "--xml", "-c", commit.Revision, svnroot).Output()
 	if err != nil {
 		return Diff{}, err
 	}
-
-	fmt.Printf("%v\n", string(buff))
 
 	var v Diff
 	err = xml.Unmarshal(buff, &v)
@@ -85,17 +86,11 @@ func getLogFromHead(svnroot string, head int) (Log, error) {
 	return v, err
 }
 
-// try to do something sensible now
-
 func parseHead(c Commit) (Commit, int) {
 	h, e := strconv.Atoi(c.Revision)
 	failiferr(e)
 
 	return c, h
-}
-
-func formatCommit(c Commit) string {
-	return fmt.Sprintf("%s: <%s> %s", c.Revision, c.Author, c.Msg)
 }
 
 func recentCommits(root string, head int) Log {
@@ -106,8 +101,46 @@ func recentCommits(root string, head int) Log {
 	return log
 }
 
-func run_irc(server, nick string, channels []string, input chan string) {
-	io := irc.IRC(nick, "rbruns")
+// taken from rosetta code
+func commonPrefix(diff Diff) string {
+	sep := byte(os.PathSeparator)
+
+	switch len(diff.Paths) {
+	case 0:
+		return ""
+	case 1:
+		return diff.Paths[0].Path
+	}
+
+	c := []byte(diff.Paths[0].Path)
+	c = append(c, sep)
+
+	for _, path := range diff.Paths[1:] {
+		v := path.Path + string(sep)
+
+		if len(v) < len(c) {
+			c = c[:len(v)]
+		}
+		for i := 0; i < len(c); i++ {
+			if v[i] != c[i] {
+				c = c[:i]
+				break
+			}
+		}
+	}
+
+	for i := len(c) - 1; i >= 0; i-- {
+		if c[i] == sep {
+			c = c[:i]
+			break
+		}
+	}
+
+	return string(c)
+}
+
+func run_irc(server, nick, owner string, channels []string, input chan string) {
+	io := irc.IRC(nick, owner)
 	io.VerboseCallbackHandler = true
 
 	io.Connect(server)
@@ -129,18 +162,40 @@ func run_irc(server, nick string, channels []string, input chan string) {
 	io.Loop()
 }
 
+func formatCommit(c Commit) string {
+	return fmt.Sprintf("r%s: <%s> %s", c.Revision, c.Author, c.Msg)
+}
+
+func withChangeRoot(original, svnroot string, c Commit) string {
+	diff, err := getPathChanges(svnroot, c)
+	if err == nil {
+		root := commonPrefix(diff)
+		return fmt.Sprintf("%s (%s)", original, root)
+	}
+	return original
+}
+
 func main() {
-	sr := "svn://nebula/"
-	head := getHead(sr)
+	if len(os.Args) != 6 {
+		failiferr(fmt.Errorf("usage: %s <server:port> <nick> <username> <#channel1,#channel2> <svnroot>", os.Args[0]))
+	}
+
+	server := os.Args[1]
+	nick := os.Args[2]
+	owner := os.Args[3]
+	channels := strings.Split(os.Args[4], ",")
+	sr := os.Args[5]
+
+	head := getHead(sr) - 1
 	svnchan := make(chan string)
 
-	go run_irc("irc:6667", "commitbot", []string{"#commits"}, svnchan)
+	go run_irc(server, nick, owner, channels, svnchan)
 
 	for {
 		log := recentCommits(sr, head)
 		for _, c := range log.Commits {
 			_, head = parseHead(c)
-			svnchan <- formatCommit(c)
+			svnchan <- withChangeRoot(formatCommit(c), sr, c)
 		}
 		time.Sleep(10 * time.Second)
 	}
