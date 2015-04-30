@@ -203,7 +203,7 @@ func main() {
 	channels := strings.Split(os.Args[4], ",")
 	sr := os.Args[5]
 
-	head := 70875
+	head := getHead(sr)
 	svnchan := make(chan string)
 
 	go run_irc(server, nick, owner, channels, svnchan)
