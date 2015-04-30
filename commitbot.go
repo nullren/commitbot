@@ -174,15 +174,12 @@ func formatCommit(svnroot string, c Commit) string {
 func withChangeRoot(svnroot string, c Commit) string {
 	diff, err := getPathChanges(svnroot, c)
 	if err == nil {
-		root := commonPrefix(diff)
-		root, err = getSvnBranch(root)
-		if err == nil {
-			return fmt.Sprintf("%s", root)
-		}
+		return commonPrefix(diff)
 	}
 	return ""
 }
 
+// TODO: this is junk
 func getSvnBranch(svnpath string) (string, error) {
 	svnprefix := "svn://"
 	if !strings.HasPrefix(svnpath, svnprefix) {
